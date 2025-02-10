@@ -41,6 +41,7 @@ class GraphModel(pl.LightningModule):
         self.train_epoch_metrics = {}
         self.val_epoch_metrics = {}
         self.test_outputs = []
+        self.test_prefix = ""
 
     def forward(self, graph, node_features, edge_features):
         """
@@ -109,9 +110,9 @@ class GraphModel(pl.LightningModule):
         edge_labels = graph.edata[self.class_num_col] if self.multi_class else graph.edata[self.label_col]
 
         pred = self.forward(graph, node_features, edge_features)
-        loss = self.criterion(pred[val_mask], edge_labels[val_mask])
+        loss = self.criterion(pred[val_mask], edge_labels[val_mask]).item()
         val_acc = (pred[val_mask].argmax(dim=1) ==
-                   edge_labels[val_mask]).float().mean()
+                   edge_labels[val_mask]).float().mean().item()
 
         weighted_f1 = f1_score(pred[val_mask].argmax(
             dim=1), edge_labels[val_mask], average="weighted")
@@ -127,7 +128,7 @@ class GraphModel(pl.LightningModule):
                  prog_bar=True, batch_size=self.batch_size)
         self.log("val_f1_score", weighted_f1, on_epoch=True, on_step=False, logger=False,
                  prog_bar=True, batch_size=self.batch_size)
-        return {"val_loss": loss, "val_acc": val_acc}
+        return {"val_loss": loss, "val_acc": val_acc, "val_f1_score": weighted_f1}
 
     def on_validation_epoch_end(self):
         epoch_metrics = {}
@@ -153,16 +154,21 @@ class GraphModel(pl.LightningModule):
         test_acc = (pred[test_mask].argmax(dim=1) ==
                     edge_labels[test_mask]).float().mean()
 
+        weighted_f1 = f1_score(
+            edge_labels[test_mask], pred[test_mask].argmax(dim=1), average="weighted")
         preds = pred[test_mask].argmax(dim=1).detach().cpu().numpy().tolist()
         targets = edge_labels[test_mask].detach().cpu().numpy().tolist()
 
         self.test_outputs.append({"preds": preds, "targets": targets})
 
-        self.log("test_loss", loss, on_epoch=True,
+        self.log(f"{self.test_prefix}_test_loss", loss, on_epoch=True,
                  prog_bar=True, batch_size=self.batch_size)
-        self.log("test_acc", test_acc, on_epoch=True,
+        self.log(f"{self.test_prefix}_test_acc", test_acc, on_epoch=True,
                  prog_bar=True, batch_size=self.batch_size)
-        return {"test_loss": loss, "test_acc": test_acc}
+        self.log(f"{self.test_prefix}_test_f1", weighted_f1, on_epoch=True,
+                 prog_bar=True, batch_size=self.batch_size)
+
+        return {"test_loss": loss, "test_acc": test_acc, "test_f1": weighted_f1}
         # return {"preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
@@ -204,8 +210,6 @@ class GraphModel(pl.LightningModule):
         #     "test_fpr": fpr if fpr is not None else float('nan'),
         #     "test_fnr": fnr if fnr is not None else float('nan')
         # }, prog_bar=True)
-        self.log("test_f1", weighted_f1, on_epoch=True,
-                 prog_bar=True, batch_size=self.batch_size)
 
         results = {
             "test_weighted_f1": weighted_f1,

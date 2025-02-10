@@ -19,10 +19,12 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 
 def main():
+    using_wandb = True
+
     # Hyperparameters
     # dataset_name = "cic_ton_iot_5_percent"
     # dataset_name = "cic_ton_iot"
-    # dataset_name = "cic_ids_2017_5_percent"
+    dataset_name = "cic_ids_2017_5_percent"
     # dataset_name = "cic_ids_2017"
     # dataset_name = "cic_bot_iot"
     # dataset_name = "cic_ton_iot_modified"
@@ -33,10 +35,10 @@ def main():
     # dataset_name = "nf_cse_cic_ids2018"
     # dataset_name = "nf_bot_iotv2"
     # dataset_name = "nf_uq_nids"
-    dataset_name = "x_iiot"
+    # dataset_name = "x_iiot"
 
-    max_epochs = 2000
-    early_stopping_patience = 100
+    max_epochs = 10
+    early_stopping_patience = 2
     learning_rate = 1e-3
     weight_decay = 1e-4
     ndim_out = [128, 128]
@@ -85,10 +87,14 @@ def main():
     my_models = {
         "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
                       dropout, residual, num_classes),
-        "e_graphsage": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
-                                  residual, num_classes, number_neighbors, aggregation),
-        "e_gat": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-                      residual, num_classes)
+        f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+                                                 residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
+        # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
+        # "e_gat": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #               residual, num_classes, num_neighbors=number_neighbors),
+        # "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #   residual, num_classes, num_neighbors=None),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)
@@ -119,10 +125,24 @@ def main():
             save_dir=wandb_runs_path
         )
 
-        checkpoint_callback = ModelCheckpoint(
+        acc_checkpoint_callback = ModelCheckpoint(
             monitor="val_acc",
             mode="max",
             filename="best-val-acc-{epoch:02d}-{val_acc:.2f}",
+            save_top_k=1,
+            verbose=False,
+        )
+        f1_checkpoint_callback = ModelCheckpoint(
+            monitor="val_f1_score",
+            mode="max",
+            filename="best-val-f1-{epoch:02d}-{val_f1_score:.2f}",
+            save_top_k=1,
+            verbose=False,
+        )
+        loss_checkpoint_callback = ModelCheckpoint(
+            monitor="val_loss",
+            mode="min",
+            filename="best-val-loss-{epoch:02d}-{val_loss:.2f}",
             save_top_k=1,
             verbose=False,
         )
@@ -137,20 +157,31 @@ def main():
             max_epochs=max_epochs,
             num_sanity_val_steps=0,
             log_every_n_steps=0,
-            callbacks=[checkpoint_callback, early_stopping_callback],
+            callbacks=[
+                acc_checkpoint_callback,
+                f1_checkpoint_callback,
+                loss_checkpoint_callback,
+                early_stopping_callback
+            ],
             default_root_dir=logs_folder,
-            logger=wandb_logger
+            logger=wandb_logger if using_wandb else None,
         )
 
-        # Train the model
         trainer.fit(graph_model, datamodule=data_module)
+        best_loss = loss_checkpoint_callback.best_model_path
+        best_acc = acc_checkpoint_callback.best_model_path
+        best_f1 = f1_checkpoint_callback.best_model_path
 
-        # Test the model
-        trainer.test(graph_model, datamodule=data_module,
-                     ckpt_path=checkpoint_callback.best_model_path)
+        graph_model.test_prefix = "best_loss"
+        trainer.test(graph_model, datamodule=data_module, ckpt_path=best_loss)
+
+        graph_model.test_prefix = "best_acc"
+        trainer.test(graph_model, datamodule=data_module, ckpt_path=best_acc)
+
+        graph_model.test_prefix = "best_f1"
+        trainer.test(graph_model, datamodule=data_module, ckpt_path=best_f1)
+
         wandb.finish()
-        # print(
-        #     f"==>> checkpoint_callback.best_model_path: {checkpoint_callback.best_model_path}")
 
 
 if __name__ == "__main__":
