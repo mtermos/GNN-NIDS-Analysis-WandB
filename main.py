@@ -36,6 +36,7 @@ def main():
     dataset_name = "x_iiot"
 
     max_epochs = 2000
+    early_stopping_patience = 100
     learning_rate = 1e-3
     weight_decay = 1e-4
     ndim_out = [128, 128]
@@ -104,6 +105,7 @@ def main():
         "residual": residual,
         "multi_class": multi_class,
         "aggregation": aggregation,
+        "early_stopping_patience": early_stopping_patience,
     }
 
     for model_name, model in my_models.items():
@@ -127,7 +129,7 @@ def main():
         early_stopping_callback = EarlyStopping(
             monitor="val_loss",
             mode="min",
-            patience=10,
+            patience=early_stopping_patience,
             verbose=False,
         )
 
