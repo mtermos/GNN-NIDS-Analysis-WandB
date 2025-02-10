@@ -20,8 +20,22 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
 def main():
     # Hyperparameters
-    dataset_name = "cic_ids_2017_5_percent"
-    max_epochs = 10
+    # dataset_name = "cic_ton_iot_5_percent"
+    # dataset_name = "cic_ton_iot"
+    # dataset_name = "cic_ids_2017_5_percent"
+    # dataset_name = "cic_ids_2017"
+    # dataset_name = "cic_bot_iot"
+    # dataset_name = "cic_ton_iot_modified"
+    # dataset_name = "nf_ton_iotv2_modified"
+    # dataset_name = "ccd_inid_modified"
+    # dataset_name = "nf_uq_nids_modified"
+    # dataset_name = "edge_iiot"
+    # dataset_name = "nf_cse_cic_ids2018"
+    # dataset_name = "nf_bot_iotv2"
+    # dataset_name = "nf_uq_nids"
+    dataset_name = "x_iiot"
+
+    max_epochs = 2000
     learning_rate = 1e-3
     weight_decay = 1e-4
     ndim_out = [128, 128]
@@ -55,6 +69,8 @@ def main():
         using_masking=False,
         masked_class=2,
         num_workers=0,
+        label_col=dataset.label_col,
+        class_num_col=dataset.class_num_col,
         device='cuda' if torch.cuda.is_available() else "cpu"
     )
 
