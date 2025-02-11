@@ -48,6 +48,7 @@ pandas==2.2.2
 parso==0.8.4
 pillow==10.4.0
 platformdirs==4.3.2
+powerlaw==1.5
 prompt_toolkit==3.0.47
 propcache==0.2.1
 protobuf==5.29.3
