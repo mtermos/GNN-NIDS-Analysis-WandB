@@ -165,3 +165,5 @@ datasets/
 temp/
 logs/
 results/
+
+local_variables.py
