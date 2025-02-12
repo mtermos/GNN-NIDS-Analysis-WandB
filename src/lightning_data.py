@@ -75,7 +75,7 @@ class CustomGraphDataset(Dataset):
         num_features = G.edata['h'].shape[1]
 
         # If masking is used in training, filter out the masked edges.
-        if self.using_masking and self.split == 'train':
+        if self.using_masking and self.split == 'training':
             # Assumes you want to mask based on the "class_num" attribute.
             training_mask = G.edata[self.class_num_col] != self.masked_class
             G = dgl.edge_subgraph(G, training_mask)
@@ -94,13 +94,13 @@ class CustomGraphDataset(Dataset):
         G.edata['h'] = G.edata['h'].reshape(G.edata['h'].shape[0], 1, -1)
 
         # Create masks in the edge data for later usage in training/validation/testing.
-        if self.split == 'train':
+        if self.split == 'training':
             G.edata['train_mask'] = th.ones(
                 G.edata['h'].shape[0], dtype=th.bool, device=self.device)
-        elif self.split == 'val':
+        elif self.split == 'validation':
             G.edata['val_mask'] = th.ones(
                 G.edata['h'].shape[0], dtype=th.bool, device=self.device)
-        elif self.split == 'test':
+        elif self.split == 'testing':
             G.edata['test_mask'] = th.ones(
                 G.edata['h'].shape[0], dtype=th.bool, device=self.device)
 
@@ -153,13 +153,13 @@ class GraphDataModule(pl.LightningDataModule):
         # For the 'fit' stage, load train and validation splits.
         if stage == 'fit' or stage is None:
             self.train_dataset = CustomGraphDataset(
-                self.graphs_folder, split='train', **self.dataset_kwargs)
+                self.graphs_folder, split='training', **self.dataset_kwargs)
             self.val_dataset = CustomGraphDataset(
-                self.graphs_folder, split='val', **self.dataset_kwargs)
+                self.graphs_folder, split='validation', **self.dataset_kwargs)
         # For the 'test' stage, load the test split.
         if stage == 'test' or stage is None:
             self.test_dataset = CustomGraphDataset(
-                self.graphs_folder, split='test', **self.dataset_kwargs)
+                self.graphs_folder, split='testing', **self.dataset_kwargs)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,

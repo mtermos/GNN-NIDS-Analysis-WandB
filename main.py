@@ -14,6 +14,7 @@ from src.models import EGAT, EGCN, EGRAPHSAGE
 from src.lightning_model import GraphModel
 from src.lightning_data import GraphDataModule
 from src.dataset.dataset_info import datasets
+from local_variables import local_datasets_path
 
 warnings.filterwarnings("ignore", ".*does not have many workers.*")
 
@@ -24,9 +25,9 @@ def main():
     # Hyperparameters
     # dataset_name = "cic_ton_iot_5_percent"
     # dataset_name = "cic_ton_iot"
-    dataset_name = "cic_ids_2017_5_percent"
+    # dataset_name = "cic_ids_2017_5_percent"
     # dataset_name = "cic_ids_2017"
-    # dataset_name = "cic_bot_iot"
+    dataset_name = "cic_bot_iot"
     # dataset_name = "cic_ton_iot_modified"
     # dataset_name = "nf_ton_iotv2_modified"
     # dataset_name = "ccd_inid_modified"
@@ -37,13 +38,13 @@ def main():
     # dataset_name = "nf_uq_nids"
     # dataset_name = "x_iiot"
 
-    max_epochs = 10
-    early_stopping_patience = 2
-    learning_rate = 1e-3
-    weight_decay = 1e-4
-    ndim_out = [128, 128]
-    num_layers = 2
-    number_neighbors = [25, 10]
+    max_epochs = 200
+    early_stopping_patience = 20
+    learning_rate = 0.001
+    weight_decay = 0.001
+    ndim_out = [128]
+    num_layers = 1
+    number_neighbors = [25]
     activation = F.relu
     dropout = 0.2
     residual = True
@@ -51,7 +52,7 @@ def main():
     aggregation = "mean"
 
     dataset = datasets[dataset_name]
-    dataset_folder = os.path.join("datasets", dataset.name)
+    dataset_folder = os.path.join(local_datasets_path, dataset.name)
     graphs_folder = os.path.join(dataset_folder, "flow__multi_class__unsorted")
     logs_folder = os.path.join("logs", dataset.name)
     os.makedirs(logs_folder, exist_ok=True)
@@ -85,16 +86,17 @@ def main():
     edim = next(iter(data_module.train_dataloader())).edata['h'].shape[-1]
 
     my_models = {
+        "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+                               residual, num_classes, num_neighbors=number_neighbors),
         "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
                       dropout, residual, num_classes),
         f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
                                                  residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
         # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
-        # "e_gat": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-        #               residual, num_classes, num_neighbors=number_neighbors),
-        # "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-        #   residual, num_classes, num_neighbors=None),
+
+        "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+                                  residual, num_classes, num_neighbors=None),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)

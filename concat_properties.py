@@ -4,6 +4,7 @@ import json
 
 from src.dataset.dataset_info import datasets
 from src.utils import NumpyEncoder
+from local_variables import local_datasets_path
 
 my_datasets = [
     # "cic_ton_iot_5_percent",
@@ -28,15 +29,15 @@ all_props = {}
 for ds in my_datasets:
     dataset_p = {}
     dataset = datasets[ds]
-    with open(os.path.join("datasets", dataset.name, dataset_properties_file_name), "r") as f:
+    with open(os.path.join(local_datasets_path, dataset.name, dataset_properties_file_name), "r") as f:
         prop = json.load(f)
         dataset_p["dataset_properties"] = prop
 
-    with open(os.path.join("datasets", dataset.name, graph_properties_file_name), "r") as f:
+    with open(os.path.join(local_datasets_path, dataset.name, graph_properties_file_name), "r") as f:
         prop = json.load(f)
         dataset_p["graph_properties"] = prop
 
     all_props[ds] = dataset_p
 
-with open(os.path.join("datasets", new_file_name), "w") as f:
+with open(os.path.join(local_datasets_path, new_file_name), "w") as f:
     json.dump(all_props, f, cls=NumpyEncoder)
