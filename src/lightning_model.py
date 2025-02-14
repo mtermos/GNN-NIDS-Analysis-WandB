@@ -126,7 +126,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class GraphModel(pl.LightningModule):
-    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1):
+    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1):
         """
         Args:
             model: Your graph neural network model (e.g. created via create_model(...))
@@ -144,6 +144,7 @@ class GraphModel(pl.LightningModule):
         self.labels = list(labels_mapping.values())
         self.labels_mapping = labels_mapping
         self.weight_decay = weight_decay
+        self.using_wandb = using_wandb
         self.norm = norm
         self.multi_class = multi_class
         self.label_col = label_col
@@ -339,12 +340,9 @@ class GraphModel(pl.LightningModule):
         json_path = os.path.join("temp", f"{self.model_name}_results.json")
         with open(json_path, "w") as f:
             json.dump(results, f, indent=4, cls=NumpyEncoder)
-        # with open(json_path, "w") as f:
-        #     f.writelines(json.dumps(results, ))
-        wandb.save(json_path)
-        # artifact = wandb.Artifact("classification_report", type="json")
-        # artifact.add_file(json_path)
-        # wandb.log_artifact(artifact)
+
+        if self.using_wandb:
+            wandb.save(json_path)
 
         print("=== Test Evaluation Metrics ===")
         print("Classification Report:\n", report)
@@ -362,16 +360,20 @@ class GraphModel(pl.LightningModule):
                                     file_path=None,
                                     show_figure=False)
 
-        wandb.log({f"confusion_matrix_{self.model_name}": wandb.Image(
-            fig), "epoch": self.current_epoch})
+        if self.using_wandb:
+            wandb.log({f"confusion_matrix_{self.model_name}": wandb.Image(
+                fig), "epoch": self.current_epoch})
         fig = plot_confusion_matrix(cm=cm_normalized,
                                     normalized=True,
                                     target_names=self.labels,
                                     title=f"Confusion Matrix of {self.model_name}",
                                     file_path=None,
                                     show_figure=False)
-        wandb.log({f"confusion_matrix_{self.model_name}_normalized": wandb.Image(
-            fig), "epoch": self.current_epoch})
+        if self.using_wandb:
+            wandb.log({f"confusion_matrix_{self.model_name}_normalized": wandb.Image(
+                fig), "epoch": self.current_epoch})
+
+        return {"test_f1": weighted_f1}
 
     def configure_optimizers(self):
         """
