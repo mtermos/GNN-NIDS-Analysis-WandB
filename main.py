@@ -28,7 +28,7 @@ def main():
     # Hyperparameters
     # dataset_name = "cic_ton_iot_5_percent"
     # dataset_name = "cic_ton_iot"
-    dataset_name = "cic_ids_2017_5_percent"
+    # dataset_name = "cic_ids_2017_5_percent"
     # dataset_name = "cic_ids_2017"
     # dataset_name = "cic_bot_iot"
     # dataset_name = "cic_ton_iot_modified"
@@ -38,16 +38,16 @@ def main():
     # dataset_name = "edge_iiot"
     # dataset_name = "nf_cse_cic_ids2018"
     # dataset_name = "nf_bot_iotv2"
-    # dataset_name = "nf_uq_nids"
+    dataset_name = "nf_uq_nids"
     # dataset_name = "x_iiot"
 
-    max_epochs = 30
-    early_stopping_patience = 20
+    early_stopping_patience = max_epochs = 200
+    # early_stopping_patience = 20
     learning_rate = 0.001
     weight_decay = 0.001
-    ndim_out = [128]
-    num_layers = 1
-    number_neighbors = [25]
+    ndim_out = [128, 128]
+    num_layers = 2
+    number_neighbors = [25, 10]
     activation = F.relu
     dropout = 0.2
     residual = True
@@ -91,8 +91,6 @@ def main():
     edim = next(iter(data_module.train_dataloader())).edata['h'].shape[-1]
 
     my_models = {
-        "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-                               residual, num_classes, num_neighbors=number_neighbors),
         "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
                       dropout, residual, num_classes),
         f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
@@ -102,6 +100,8 @@ def main():
 
         "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
                                   residual, num_classes, num_neighbors=None),
+        "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+                               residual, num_classes, num_neighbors=number_neighbors),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)
