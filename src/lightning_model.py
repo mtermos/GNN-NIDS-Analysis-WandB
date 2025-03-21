@@ -1,5 +1,6 @@
 import pytorch_lightning as pl
 import torch as th
+import timeit
 import os
 import json
 import wandb
@@ -111,6 +112,9 @@ def plot_confusion_matrix(cm,
         plt.savefig(file_path)
     if show_figure:
         plt.show()
+    else:
+        plt.close(fig)
+
     return fig
 
 
@@ -126,7 +130,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class GraphModel(pl.LightningModule):
-    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1):
+    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1, verbose=True):
         """
         Args:
             model: Your graph neural network model (e.g. created via create_model(...))
@@ -150,6 +154,7 @@ class GraphModel(pl.LightningModule):
         self.label_col = label_col
         self.class_num_col = class_num_col
         self.batch_size = batch_size
+        self.verbose = verbose
         self.save_hyperparameters(config)
         self.train_epoch_metrics = {}
         self.val_epoch_metrics = {}
@@ -264,7 +269,11 @@ class GraphModel(pl.LightningModule):
         test_mask = graph.edata['test_mask']
         edge_labels = graph.edata[self.class_num_col] if self.multi_class else graph.edata[self.label_col]
 
+        start_time = timeit.default_timer()
         pred = self.forward(graph, node_features, edge_features)
+        elapsed = timeit.default_timer() - start_time
+        print(f"==>> elapsed: {elapsed}")
+
         loss = self.criterion(pred[test_mask], edge_labels[test_mask])
 
         preds = pred[test_mask].argmax(dim=1).detach().cpu()
@@ -283,8 +292,10 @@ class GraphModel(pl.LightningModule):
                  prog_bar=True, batch_size=self.batch_size)
         self.log(f"{self.test_prefix}_test_f1", weighted_f1, on_epoch=True,
                  prog_bar=True, batch_size=self.batch_size)
+        self.log(f"{self.test_prefix}_elapsed", elapsed, on_epoch=True,
+                 prog_bar=True, batch_size=self.batch_size)
 
-        return {"test_loss": loss, "test_acc": test_acc, "test_f1": weighted_f1}
+        return {"test_loss": loss, "test_acc": test_acc, "test_f1": weighted_f1, "elapsed": elapsed}
         # return {"preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
@@ -344,8 +355,9 @@ class GraphModel(pl.LightningModule):
         if self.using_wandb:
             wandb.save(json_path)
 
-        print("=== Test Evaluation Metrics ===")
-        print("Classification Report:\n", report)
+        if self.verbose:
+            print("=== Test Evaluation Metrics ===")
+            print("Classification Report:\n", report)
 
         # confusion_matrices = os.path.join(log_dir, "confusion_matrices")
         # cm_path = os.path.join(confusion_matrices, f"{self.model_name}.png")

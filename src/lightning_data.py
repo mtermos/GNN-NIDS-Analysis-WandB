@@ -83,6 +83,8 @@ class CustomGraphDataset(Dataset):
         # Process node features:
         if self.use_node_features:
             # For example, you might want to use the “n_feats” field.
+            # G.ndata["h"] = th.cat([G.ndata["n_feats"].to(self.device), th.ones(
+            #     G.num_nodes(), num_features, device=self.device)], dim=1)
             G.ndata["h"] = G.ndata["n_feats"].to(self.device)
         else:
             # Otherwise, initialize node features as ones.

@@ -12,7 +12,8 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 
-from src.models import EGAT, EGCN, EGRAPHSAGE
+from src.models import EGAT, EGRAPHSAGE
+# from src.models import EGAT, EGCN, EGRAPHSAGE
 from src.lightning_model import GraphModel
 from src.lightning_data import GraphDataModule
 from src.dataset.dataset_info import datasets
@@ -38,27 +39,39 @@ def main():
     # dataset_name = "edge_iiot"
     # dataset_name = "nf_cse_cic_ids2018"
     # dataset_name = "nf_bot_iotv2"
-    dataset_name = "nf_uq_nids"
-    # dataset_name = "x_iiot"
+    # dataset_name = "nf_uq_nids"
+    dataset_name = "x_iiot"
 
-    early_stopping_patience = max_epochs = 200
+    early_stopping_patience = max_epochs = 500
     # early_stopping_patience = 20
-    learning_rate = 0.001
-    weight_decay = 0.001
+    learning_rate = 0.005
+    weight_decay = 0.0
     ndim_out = [128, 128]
     num_layers = 2
     number_neighbors = [25, 10]
     activation = F.relu
-    dropout = 0.2
+    dropout = 0.0
     residual = True
     multi_class = True
+    use_centralities_nfeats = False
     aggregation = "mean"
 
     run_dtime = time.strftime("%Y%m%d-%H%M%S")
 
+    g_type = "flow"
+
+    if multi_class:
+        g_type += "__multi_class"
+
+    if use_centralities_nfeats:
+        g_type += "__n_feats"
+
+    g_type += "__unsorted"
+
     dataset = datasets[dataset_name]
     dataset_folder = os.path.join(local_datasets_path, dataset.name)
-    graphs_folder = os.path.join(dataset_folder, "flow__multi_class__unsorted")
+    graphs_folder = os.path.join(dataset_folder, g_type)
+
     logs_folder = os.path.join("logs", dataset.name)
     os.makedirs(logs_folder, exist_ok=True)
     wandb_runs_path = os.path.join("logs", "wandb_runs")
@@ -73,7 +86,7 @@ def main():
     num_classes = len(labels_mapping)
 
     dataset_kwargs = dict(
-        use_node_features=False,
+        use_node_features=use_centralities_nfeats,
         multi_class=True,
         using_masking=False,
         masked_class=2,
@@ -91,29 +104,35 @@ def main():
     edim = next(iter(data_module.train_dataloader())).edata['h'].shape[-1]
 
     my_models = {
-        "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
-                      dropout, residual, num_classes),
-        f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
-                                                 residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
+        # "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
+        #               dropout, residual, num_classes),
+        # f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                                          residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
         # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
 
         "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
                                   residual, num_classes, num_neighbors=None),
-        "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-                               residual, num_classes, num_neighbors=number_neighbors),
+        # "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                        residual, num_classes, num_neighbors=number_neighbors),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)
 
+    elapsed = {
+        "dataset": dataset.name
+    }
     for model_name, model in my_models.items():
 
         config = {
             "run_dtime": run_dtime,
+            "type": "GNN",
             "model_name": model_name,
             "max_epochs": max_epochs,
             "learning_rate": learning_rate,
             "weight_decay": weight_decay,
+            "ndim": ndim,
+            "edim": edim,
             "ndim_out": ndim_out,
             "num_layers": num_layers,
             "number_neighbors": number_neighbors,
@@ -122,7 +141,9 @@ def main():
             "residual": residual,
             "multi_class": multi_class,
             "aggregation": aggregation,
+            # "details": "updating edge features",
             "early_stopping_patience": early_stopping_patience,
+            "use_centralities_nfeats": use_centralities_nfeats,
         }
 
         graph_model = GraphModel(model, criterion, learning_rate, config, model_name,
@@ -168,6 +189,7 @@ def main():
         trainer.fit(graph_model, datamodule=data_module)
 
         test_results = []
+        test_elapsed = []
         print(
             f"==>> f1_checkpoint_callback.best_k_models.keys(): {f1_checkpoint_callback.best_k_models.keys()}")
         for i, k in enumerate(f1_checkpoint_callback.best_k_models.keys()):
@@ -175,18 +197,22 @@ def main():
             results = trainer.test(
                 graph_model, datamodule=data_module, ckpt_path=k)
             test_results.append(results[0][f"best_f1_{i}_test_f1"])
+            test_elapsed.append(results[0][f"best_f1_{i}_elapsed"])
 
         logs = {
             "median_f1_of_best_f1": np.median(test_results),
             "max_f1_of_best_f1": np.max(test_results),
             "avg_f1_of_best_f1": np.mean(test_results)
         }
-
+        elapsed[model_name] = np.mean(test_elapsed).item()
+        print(f"==>> model_name: {model_name}")
+        print(f"==>> test_elapsed: {np.mean(test_elapsed)}")
         if using_wandb:
             wandb.log(logs)
             wandb.finish()
         else:
             trainer.logger.log_metrics(logs, step=trainer.global_step)
+    print(f"==>> elapsed: {elapsed}")
 
 
 if __name__ == "__main__":

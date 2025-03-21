@@ -43,7 +43,7 @@ class MLPPredictor(nn.Module):
 class GCNLayer(nn.Module):
     def __init__(self, ndim_in, edim, ndim_out, activation, norm=True):
         super(GCNLayer, self).__init__()
-        self.W_apply = nn.Linear(edim, ndim_out)
+        self.W_apply = nn.Linear(ndim_in + edim, ndim_out)
         self.activation = activation
         self.norm = norm
 
@@ -63,7 +63,8 @@ class GCNLayer(nn.Module):
 
             g.update_all(self.message_func, fn.mean('m', 'h_neigh'))
 
-            g.ndata['h'] = self.activation(self.W_apply(g.ndata['h_neigh']))
+            g.ndata['h'] = self.activation(self.W_apply(
+                th.cat([g.ndata['h'], g.ndata['h_neigh']], 2)))
             return g.ndata['h']
 
 
@@ -147,6 +148,8 @@ class SAGELayer(nn.Module):
 
             if self.aggregation == "mean":
                 g.update_all(self.message_func, fn.mean('m', 'h_neigh'))
+            if self.aggregation == "sum":
+                g.update_all(self.message_func, fn.sum('m', 'h_neigh'))
             elif self.aggregation == "pool":
                 g.update_all(self.message_func, fn.max('m', 'h_pool'))
                 g.ndata['h_neigh'] = self.activation(
