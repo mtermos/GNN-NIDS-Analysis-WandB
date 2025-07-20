@@ -14,7 +14,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from src.models import EGAT, EGRAPHSAGE
 # from src.models import EGAT, EGCN, EGRAPHSAGE
-from src.lightning_model import GraphModel
+from src.lightning_model import GraphModel, WindowedGraphModel
 from src.lightning_data import GraphDataModule
 from src.dataset.dataset_info import datasets
 from local_variables import local_datasets_path
@@ -29,7 +29,7 @@ def main():
     # Hyperparameters
     # dataset_name = "cic_ton_iot_5_percent"
     # dataset_name = "cic_ton_iot"
-    # dataset_name = "cic_ids_2017_5_percent"
+    dataset_name = "cic_ids_2017_5_percent"
     # dataset_name = "cic_ids_2017"
     # dataset_name = "cic_bot_iot"
     # dataset_name = "cic_ton_iot_modified"
@@ -40,7 +40,7 @@ def main():
     # dataset_name = "nf_cse_cic_ids2018"
     # dataset_name = "nf_bot_iotv2"
     # dataset_name = "nf_uq_nids"
-    dataset_name = "x_iiot"
+    # dataset_name = "x_iiot"
 
     early_stopping_patience = max_epochs = 500
     # early_stopping_patience = 20
@@ -56,9 +56,23 @@ def main():
     use_centralities_nfeats = False
     aggregation = "mean"
 
+    sort_timestamp = False
+    # sort_timestamp = True
+
     run_dtime = time.strftime("%Y%m%d-%H%M%S")
 
-    g_type = "flow"
+    # graph_type = "flow"
+    graph_type = "window"
+    batch_size = 1
+    # graph_type = "line"
+
+    window_size = 500
+
+    g_type = ""
+    if graph_type == "flow":
+        g_type = "flow"
+    elif graph_type == "window":
+        g_type = f"window_graph_{window_size}"
 
     if multi_class:
         g_type += "__multi_class"
@@ -66,7 +80,10 @@ def main():
     if use_centralities_nfeats:
         g_type += "__n_feats"
 
-    g_type += "__unsorted"
+    if sort_timestamp:
+        g_type += "__sorted"
+    else:
+        g_type += "__unsorted"
 
     dataset = datasets[dataset_name]
     dataset_folder = os.path.join(local_datasets_path, dataset.name)
@@ -97,7 +114,7 @@ def main():
     )
 
     data_module = GraphDataModule(
-        graphs_folder, batch_size=1, **dataset_kwargs)
+        graphs_folder, graph_type, batch_size=batch_size, **dataset_kwargs)
     data_module.setup()
 
     ndim = next(iter(data_module.train_dataloader())).ndata["h"].shape[-1]
@@ -106,13 +123,13 @@ def main():
     my_models = {
         # "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
         #               dropout, residual, num_classes),
-        # f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
-        #                                          residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
+        f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+                                                 residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
         # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
 
-        "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
-                                  residual, num_classes, num_neighbors=None),
+        # "e_gat_no_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                           residual, num_classes, num_neighbors=None),
         # "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                        residual, num_classes, num_neighbors=number_neighbors),
     }
@@ -146,8 +163,12 @@ def main():
             "use_centralities_nfeats": use_centralities_nfeats,
         }
 
-        graph_model = GraphModel(model, criterion, learning_rate, config, model_name,
-                                 labels_mapping, weight_decay=weight_decay, using_wandb=using_wandb, norm=False, multi_class=True)
+        if graph_type == "flow":
+            graph_model = GraphModel(model, criterion, learning_rate, config, model_name,
+                                     labels_mapping, weight_decay=weight_decay, using_wandb=using_wandb, norm=False, multi_class=True)
+        elif graph_type == "window":
+            graph_model = WindowedGraphModel(model, criterion, learning_rate, config, model_name,
+                                             labels_mapping, weight_decay=weight_decay, using_wandb=using_wandb, norm=False, multi_class=True)
 
         if using_wandb:
             wandb_logger = WandbLogger(

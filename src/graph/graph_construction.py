@@ -126,6 +126,7 @@ def create_weightless_session_graph(df, src_ip_col, dst_ip_col, multi_graph=Fals
 
 def create_weightless_window_graph(df, dataset, window_size=20000, cn_measures=None, network_features=None, multi_graph=False, line_graph=False, folder_path=None, test_percentage=None, edge_attr=None, file_type="gexf"):
 
+    # df = df.sort_values(by=dataset.timestamp_col)
     try:
         # Record the start time
         start_time = time.time()
