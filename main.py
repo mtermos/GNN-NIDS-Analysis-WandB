@@ -12,7 +12,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 
-from src.models import EGAT, EGRAPHSAGE
+from src.models import EGAT, EGRAPHSAGE, EGIN
 # from src.models import EGAT, EGCN, EGRAPHSAGE
 from src.lightning_model import GraphModel, WindowedGraphModel
 from src.lightning_data import GraphDataModule
@@ -123,8 +123,8 @@ def main():
     my_models = {
         # "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
         #               dropout, residual, num_classes),
-        f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
-                                                 residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
+        # f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                                          residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
         # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
 
@@ -132,6 +132,8 @@ def main():
         #                           residual, num_classes, num_neighbors=None),
         # "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                        residual, num_classes, num_neighbors=number_neighbors),
+        f"e_gin": EGIN(ndim, edim, ndim_out, num_layers, activation, dropout,
+                       residual, num_classes),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)
