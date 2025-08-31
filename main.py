@@ -132,8 +132,6 @@ def main():
         #                           residual, num_classes, num_neighbors=None),
         # "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                        residual, num_classes, num_neighbors=number_neighbors),
-        "e_gin": EGIN(ndim, edim, ndim_out, num_layers, activation, dropout,
-                       residual, num_classes),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)

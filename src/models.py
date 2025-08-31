@@ -324,7 +324,6 @@ class EGIN(nn.Module):
         return self.pred(g, h)
 
 
-
 class Model:
     def __init__(
         self,
