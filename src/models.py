@@ -269,6 +269,62 @@ class EGAT(nn.Module):
         return self.pred(g, h)
 
 
+#############################
+#############################
+#############################
+# E_GIN Model
+
+class GINLayer(nn.Module):
+    def __init__(self, ndim_in, edim, ndim_out, activation):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(ndim_in + edim, ndim_out),
+            nn.ReLU(),
+            nn.Linear(ndim_out, ndim_out),
+            nn.ReLU(),
+        )
+
+    def forward(self, g, nfeats, efeats):
+        with g.local_scope():
+            g.ndata['h'] = nfeats
+            g.edata['h'] = efeats
+            g.update_all(fn.copy_e('h', 'm'), fn.sum('m', 'h_neigh'))
+            h_input = th.cat([g.ndata['h'], g.ndata['h_neigh']], dim=-1)
+            g.ndata['h'] = self.mlp(h_input)
+            return g.ndata['h']
+
+
+class GIN(nn.Module):
+    def __init__(self, ndim_in, edim, ndim_out, num_layers, activation, dropout):
+        super().__init__()
+        self.layers = nn.ModuleList()
+        for i in range(num_layers):
+            in_dim = ndim_in if i == 0 else ndim_out[i - 1]
+            self.layers.append(GINLayer(in_dim, edim, ndim_out[i], activation))
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, g, nfeats, efeats):
+        for i, layer in enumerate(self.layers):
+            if i > 0:
+                nfeats = self.dropout(nfeats)
+            nfeats = layer(g, nfeats, efeats)
+        return nfeats.sum(1)
+
+
+class EGIN(nn.Module):
+    def __init__(self, ndim_in, edim, ndim_out, num_layers=2, activation=F.relu, dropout=0.2, residual=True, num_class=2):
+        super().__init__()
+        self.gnn = GIN(ndim_in, edim, ndim_out,
+                       num_layers, activation, dropout)
+        self.pred = MLPPredictor(
+            ndim_out[-1], edim, num_class, activation, residual)
+
+    def forward(self, g, nfeats, efeats):
+        h = self.gnn(g, nfeats, efeats)
+        return self.pred(g, h)
+
+
+
 class Model:
     def __init__(
         self,

@@ -165,5 +165,6 @@ datasets/
 temp/
 logs/
 results/
+outputs/
 
 local_variables.py

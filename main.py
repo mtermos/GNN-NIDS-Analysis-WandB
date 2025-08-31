@@ -12,7 +12,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 
-from src.models import EGAT, EGRAPHSAGE
+from src.models import EGAT, EGRAPHSAGE, EGIN
 # from src.models import EGAT, EGCN, EGRAPHSAGE
 from src.lightning_model import GraphModel, WindowedGraphModel
 from src.lightning_data import GraphDataModule
@@ -29,12 +29,12 @@ def main():
     # Hyperparameters
     # dataset_name = "cic_ton_iot_5_percent"
     # dataset_name = "cic_ton_iot"
-    dataset_name = "cic_ids_2017_5_percent"
+    # dataset_name = "cic_ids_2017_5_percent"
     # dataset_name = "cic_ids_2017"
     # dataset_name = "cic_bot_iot"
     # dataset_name = "cic_ton_iot_modified"
     # dataset_name = "nf_ton_iotv2_modified"
-    # dataset_name = "ccd_inid_modified"
+    dataset_name = "ccd_inid_modified"
     # dataset_name = "nf_uq_nids_modified"
     # dataset_name = "edge_iiot"
     # dataset_name = "nf_cse_cic_ids2018"
@@ -42,7 +42,7 @@ def main():
     # dataset_name = "nf_uq_nids"
     # dataset_name = "x_iiot"
 
-    early_stopping_patience = max_epochs = 500
+    early_stopping_patience = max_epochs = 100
     # early_stopping_patience = 20
     learning_rate = 0.005
     weight_decay = 0.0
@@ -61,12 +61,12 @@ def main():
 
     run_dtime = time.strftime("%Y%m%d-%H%M%S")
 
-    # graph_type = "flow"
-    graph_type = "window"
+    graph_type = "flow"
+    # graph_type = "window"
     batch_size = 1
     # graph_type = "line"
 
-    window_size = 500
+    window_size = 1000
 
     g_type = ""
     if graph_type == "flow":
@@ -123,8 +123,8 @@ def main():
     my_models = {
         # "e_gcn": EGCN(ndim, edim, ndim_out, num_layers, activation,
         #               dropout, residual, num_classes),
-        f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
-                                                 residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
+        # f"e_graphsage_{aggregation}": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
+        #                                          residual, num_classes, num_neighbors=number_neighbors, aggregation=aggregation),
         # f"e_graphsage_{aggregation}_no_sampling": EGRAPHSAGE(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                                                      residual, num_classes, num_neighbors=None, aggregation=aggregation),
 
@@ -132,6 +132,8 @@ def main():
         #                           residual, num_classes, num_neighbors=None),
         # "e_gat_sampling": EGAT(ndim, edim, ndim_out, num_layers, activation, dropout,
         #                        residual, num_classes, num_neighbors=number_neighbors),
+        "e_gin": EGIN(ndim, edim, ndim_out, num_layers, activation, dropout,
+                       residual, num_classes),
     }
 
     criterion = nn.CrossEntropyLoss(data_module.train_dataset.class_weights)
@@ -218,16 +220,16 @@ def main():
             results = trainer.test(
                 graph_model, datamodule=data_module, ckpt_path=k)
             test_results.append(results[0][f"best_f1_{i}_test_f1"])
-            test_elapsed.append(results[0][f"best_f1_{i}_elapsed"])
+            # test_elapsed.append(results[0][f"best_f1_{i}_elapsed"])
 
         logs = {
             "median_f1_of_best_f1": np.median(test_results),
             "max_f1_of_best_f1": np.max(test_results),
             "avg_f1_of_best_f1": np.mean(test_results)
         }
-        elapsed[model_name] = np.mean(test_elapsed).item()
+        # elapsed[model_name] = np.mean(test_elapsed).item()
         print(f"==>> model_name: {model_name}")
-        print(f"==>> test_elapsed: {np.mean(test_elapsed)}")
+        # print(f"==>> test_elapsed: {np.mean(test_elapsed)}")
         if using_wandb:
             wandb.log(logs)
             wandb.finish()

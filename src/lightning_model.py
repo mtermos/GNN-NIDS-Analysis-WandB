@@ -547,47 +547,7 @@ class WindowedGraphModel(pl.LightningModule):
 
         print("Validation Classification Report:\n", report)
 
-        # if self.using_wandb:
-        #     class_report = classification_report(all_targets, all_preds,
-        #                                          digits=4,
-        #                                          output_dict=True,
-        #                                          zero_division=0)
-        #     report_df = pd.DataFrame(class_report).T.reset_index()
-        #     report_df = report_df.rename(columns={"index": "class"})
-
-        #     table = wandb.Table(dataframe=report_df)
-        #     wandb.log({f"classification_report_{self.server_round}": table})
-        # columns = ["class", "precision", "recall", "f1-score", "support"]
-        # data = [
-        #     [row["class"],
-        #     row["precision"],
-        #     row["recall"],
-        #     row["f1-score"],
-        #     int(row["support"])]
-        #     for _, row in report_df.iterrows()
-        # ]
-        # table2 = wandb.Table(data=data, columns=columns)
-        # wandb.log({"classification_report_manual": table2})
-        # report_columns =  ["Class", "Precision", "Recall", "F1-score", "Support"]
-        # class_report = classification_report(all_targets,all_preds).splitlines()
-
-        # report_table = []
-        # for line in class_report[2:(len(self.labels)+2)]:
-        #     report_table.append(line.split())
-
-        # wandb.log({
-        #     "Confusion Matix": wandb.plot.confusion_matrix(y_true=all_targets, preds=all_preds, class_names=self.labels),
-        #     "Classification Report": wandb.Table(data=report_table, columns=report_columns)
-        #     })
         self.val_outputs = {"preds": [], "targets": []}
-
-    # def on_validation_epoch_end(self):
-    #     epoch_metrics = {}
-    #     epoch_metrics.update(self.train_epoch_metrics)
-    #     epoch_metrics.update(self.val_epoch_metrics)
-    #     self.log_dict(epoch_metrics, on_step=False,
-    #                   on_epoch=True, batch_size=self.batch_size)
-    #     return super().on_validation_epoch_end()
 
     def test_step(self, batch, batch_idx):
         """
@@ -603,7 +563,7 @@ class WindowedGraphModel(pl.LightningModule):
         start_time = timeit.default_timer()
         pred = self.forward(graph, node_features, edge_features)
         elapsed = timeit.default_timer() - start_time
-        print(f"==>> elapsed: {elapsed}")
+        # print(f"==>> elapsed: {elapsed}")
 
         loss = self.criterion(pred[test_mask], edge_labels[test_mask])
 
@@ -650,6 +610,8 @@ class WindowedGraphModel(pl.LightningModule):
         weighted_f1 = f1_score(all_targets, all_preds,
                                average="weighted") * 100
 
+        self.log(f"{self.test_prefix}_test_f1", weighted_f1, on_epoch=True,
+                 prog_bar=True, batch_size=self.batch_size)
         results_fpr_fnr = calculate_fpr_fnr_with_global(cm)
         fpr = results_fpr_fnr["global"]["FPR"]
         fnr = results_fpr_fnr["global"]["FNR"]
