@@ -166,5 +166,7 @@ temp/
 logs/
 results/
 outputs/
+tuning_results/
 
 local_variables.py
+.DS_Store

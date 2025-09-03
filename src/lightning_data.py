@@ -5,7 +5,7 @@ import dgl
 import networkx as nx
 import numpy as np
 import pytorch_lightning as pl
-import torch as th
+import torch
 import torch.nn as nn
 from dgl import from_networkx
 from sklearn.utils import class_weight
@@ -75,12 +75,12 @@ class WindowedGraphDataset(Dataset):
                 # Process node features:
                 if self.use_node_features:
                     # For example, you might want to use the “n_feats” field.
-                    # G.ndata["h"] = th.cat([G.ndata["n_feats"].to(self.device), th.ones(
+                    # G.ndata["h"] = torch.cat([G.ndata["n_feats"].to(self.device), torch.ones(
                     #     G.num_nodes(), num_features, device=self.device)], dim=1)
                     G.ndata["h"] = G.ndata["n_feats"].to(self.device)
                 else:
                     # Otherwise, initialize node features as ones.
-                    G.ndata['h'] = th.ones(
+                    G.ndata['h'] = torch.ones(
                         G.num_nodes(), num_features, device=self.device)
 
                 # Reshape node and edge features if required by your model.
@@ -91,14 +91,14 @@ class WindowedGraphDataset(Dataset):
 
                 # Create masks in the edge data for later usage in training/validation/testing.
                 if self.split == 'training':
-                    G.edata['train_mask'] = th.ones(
-                        G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+                    G.edata['train_mask'] = torch.ones(
+                        G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
                 elif self.split == 'validation':
-                    G.edata['val_mask'] = th.ones(
-                        G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+                    G.edata['val_mask'] = torch.ones(
+                        G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
                 elif self.split == 'testing':
-                    G.edata['test_mask'] = th.ones(
-                        G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+                    G.edata['test_mask'] = torch.ones(
+                        G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
 
                 graphs.append(G)
 
@@ -131,7 +131,7 @@ class WindowedGraphDataset(Dataset):
             y=all_targets
         )
 
-        return th.FloatTensor(weights)
+        return torch.FloatTensor(weights)
 
     def __len__(self):
         return len(self.graphs)
@@ -210,12 +210,12 @@ class CustomGraphDataset(Dataset):
         # Process node features:
         if self.use_node_features:
             # For example, you might want to use the “n_feats” field.
-            # G.ndata["h"] = th.cat([G.ndata["n_feats"].to(self.device), th.ones(
+            # G.ndata["h"] = torch.cat([G.ndata["n_feats"].to(self.device), torch.ones(
             #     G.num_nodes(), num_features, device=self.device)], dim=1)
             G.ndata["h"] = G.ndata["n_feats"].to(self.device)
         else:
             # Otherwise, initialize node features as ones.
-            G.ndata['h'] = th.ones(
+            G.ndata['h'] = torch.ones(
                 G.num_nodes(), num_features, device=self.device)
 
         # Reshape node and edge features if required by your model.
@@ -224,14 +224,14 @@ class CustomGraphDataset(Dataset):
 
         # Create masks in the edge data for later usage in training/validation/testing.
         if self.split == 'training':
-            G.edata['train_mask'] = th.ones(
-                G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+            G.edata['train_mask'] = torch.ones(
+                G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
         elif self.split == 'validation':
-            G.edata['val_mask'] = th.ones(
-                G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+            G.edata['val_mask'] = torch.ones(
+                G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
         elif self.split == 'testing':
-            G.edata['test_mask'] = th.ones(
-                G.edata['h'].shape[0], dtype=th.bool, device=self.device)
+            G.edata['test_mask'] = torch.ones(
+                G.edata['h'].shape[0], dtype=torch.bool, device=self.device)
 
         return G
 
@@ -248,7 +248,7 @@ class CustomGraphDataset(Dataset):
         if self.using_masking:
             # If masking is used, you might want to insert a zero weight for the masked class.
             weights = np.insert(weights, self.masked_class, 0)
-        return th.FloatTensor(weights)
+        return torch.FloatTensor(weights)
 
     def __len__(self):
         # If you are loading one complete graph per split, the dataset length is 1.

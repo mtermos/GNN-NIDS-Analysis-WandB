@@ -131,7 +131,7 @@ def create_weightless_window_graph(df, dataset, window_size=20000, cn_measures=N
         # Record the start time
         start_time = time.time()
 
-        # graphs = []
+        graphs = []
 
         # Total number of records
         total_records = len(df)
@@ -215,12 +215,12 @@ def create_weightless_window_graph(df, dataset, window_size=20000, cn_measures=N
                 print(f"==>> graph_measures of graph_{i}: {graph_measures}")
 
             # Append the graph to the list
-            # graphs.append(G)
+            graphs.append(G)
             i += 1
 
         print(f"Graph created in {time.time() - start_time:.2f} seconds.")
 
-        # return graphs
+        return graphs
 
     except Exception as e:
         print(f"An error occurred: {e}")

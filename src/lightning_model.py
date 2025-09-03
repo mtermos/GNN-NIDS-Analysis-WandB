@@ -1,5 +1,5 @@
 import pytorch_lightning as pl
-import torch as th
+import torch
 import timeit
 import os
 import json
@@ -12,126 +12,11 @@ from sklearn.metrics import (
     confusion_matrix,
     f1_score
 )
-# from src.utils import NumpyEncoder, calculate_fpr_fnr_with_global, plot_confusion_matrix
-
-import itertools
-
-import matplotlib.pyplot as plt
-
-
-def calculate_fpr_fnr_with_global(cm):
-    """
-    Calculate FPR and FNR for each class and globally for a multi-class confusion matrix.
-
-    Parameters:
-        cm (numpy.ndarray): Confusion matrix of shape (num_classes, num_classes).
-
-    Returns:
-        dict: A dictionary containing per-class and global FPR and FNR.
-    """
-    num_classes = cm.shape[0]
-    results = {"per_class": {}, "global": {}}
-
-    # Initialize variables for global calculation
-    total_TP = 0
-    total_FP = 0
-    total_FN = 0
-    total_TN = 0
-
-    # Per-class calculation
-    for class_idx in range(num_classes):
-        TP = cm[class_idx, class_idx]
-        FN = np.sum(cm[class_idx, :]) - TP
-        FP = np.sum(cm[:, class_idx]) - TP
-        TN = np.sum(cm) - (TP + FP + FN)
-
-        # Calculate FPR and FNR for this class
-        FPR = FP / (FP + TN) if (FP + TN) != 0 else None
-        FNR = FN / (TP + FN) if (TP + FN) != 0 else None
-
-        # Store per-class results
-        results["per_class"][class_idx] = {"FPR": FPR, "FNR": FNR}
-
-        # Update global counts
-        total_TP += TP
-        total_FP += FP
-        total_FN += FN
-        total_TN += TN
-
-    # Global calculation
-    global_FPR = total_FP / \
-        (total_FP + total_TN) if (total_FP + total_TN) != 0 else None
-    global_FNR = total_FN / \
-        (total_FN + total_TP) if (total_FN + total_TP) != 0 else None
-
-    results["global"]["FPR"] = global_FPR
-    results["global"]["FNR"] = global_FNR
-
-    return results
-
-
-def plot_confusion_matrix(cm,
-                          target_names,
-                          title='Confusion matrix',
-                          cmap=None,
-                          normalized=False,
-                          file_path=None,
-                          show_figure=True):
-
-    accuracy = np.trace(cm) / float(np.sum(cm))
-    misclass = 1 - accuracy
-
-    if cmap is None:
-        cmap = plt.get_cmap('Blues')
-
-    fig = plt.figure(figsize=(12, 12))
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-
-    if target_names is not None:
-        tick_marks = np.arange(len(target_names))
-        plt.xticks(tick_marks, target_names, rotation=45)
-        plt.yticks(tick_marks, target_names)
-
-    thresh = cm.max() / 2
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        if normalized:
-            plt.text(j, i, "{:0.3f}".format(cm[i, j]),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-        else:
-            plt.text(j, i, "{:,}".format(cm[i, j]),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label\naccuracy={:0.4f}; misclass={:0.4f}'.format(
-        accuracy, misclass))
-    if file_path:
-        plt.savefig(file_path)
-    if show_figure:
-        plt.show()
-    else:
-        plt.close(fig)
-
-    return fig
-
-
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NumpyEncoder, self).default(obj)
+from src.utils import NumpyEncoder, calculate_fpr_fnr_with_global, plot_confusion_matrix
 
 
 class GraphModel(pl.LightningModule):
-    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1, verbose=True):
+    def __init__(self, model, criterion, learning_rate, config_dict, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1, verbose=True, needs_epoch_hook=False):
         """
         Args:
             model: Your graph neural network model (e.g. created via create_model(...))
@@ -156,7 +41,8 @@ class GraphModel(pl.LightningModule):
         self.class_num_col = class_num_col
         self.batch_size = batch_size
         self.verbose = verbose
-        self.save_hyperparameters(config)
+        self.needs_epoch_hook = needs_epoch_hook
+        self.save_hyperparameters(config_dict)
         self.train_epoch_metrics = {}
         self.val_epoch_metrics = {}
         self.test_outputs = []
@@ -170,12 +56,17 @@ class GraphModel(pl.LightningModule):
         """
         if self.norm:
             # Compute edge normalization weights (assuming 'both' normalization)
-            edge_weight = th.ones(
-                graph.num_edges(), dtype=th.float32, device=graph.device)
+            edge_weight = torch.ones(
+                graph.num_edges(), dtype=torch.float32, device=graph.device)
             norm_func = EdgeWeightNorm(norm='both')
             norm_edge_weight = norm_func(graph, edge_weight)
             graph.edata['norm_weight'] = norm_edge_weight
         return self.model(graph, node_features, edge_features)
+
+    def on_train_epoch_start(self):
+        if self.needs_epoch_hook:
+            self.criterion.set_epoch(self.current_epoch)
+        return super().on_train_epoch_start()
 
     def training_step(self, batch, batch_idx):
         """
@@ -392,14 +283,14 @@ class GraphModel(pl.LightningModule):
         """
         Configure the optimizer. In this example, we use Adam.
         """
-        optimizer = th.optim.Adam(self.model.parameters(),
+        optimizer = torch.optim.Adam(self.model.parameters(),
                                   lr=self.learning_rate,
                                   weight_decay=self.weight_decay)
         return optimizer
 
 
 class WindowedGraphModel(pl.LightningModule):
-    def __init__(self, model, criterion, learning_rate, config, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1, verbose=True):
+    def __init__(self, model, criterion, learning_rate, config_dict, model_name, labels_mapping, weight_decay=0, using_wandb=False, norm=False, multi_class=False, label_col="Label", class_num_col="Class", batch_size=1, verbose=True, needs_epoch_hook=False):
         """
         Args:
             model: Your graph neural network model (e.g. created via create_model(...))
@@ -424,7 +315,8 @@ class WindowedGraphModel(pl.LightningModule):
         self.class_num_col = class_num_col
         self.batch_size = batch_size
         self.verbose = verbose
-        self.save_hyperparameters(config)
+        self.needs_epoch_hook = needs_epoch_hook
+        self.save_hyperparameters(config_dict)
         self.train_epoch_metrics = {}
         self.val_epoch_metrics = {}
         self.test_outputs = []
@@ -441,13 +333,18 @@ class WindowedGraphModel(pl.LightningModule):
         """
         if self.norm:
             # Compute edge normalization weights (assuming 'both' normalization)
-            edge_weight = th.ones(
-                graph.num_edges(), dtype=th.float32, device=graph.device)
+            edge_weight = torch.ones(
+                graph.num_edges(), dtype=torch.float32, device=graph.device)
             norm_func = EdgeWeightNorm(norm='both')
             norm_edge_weight = norm_func(graph, edge_weight)
             graph.edata['norm_weight'] = norm_edge_weight
         return self.model(graph, node_features, edge_features)
 
+    def on_train_epoch_start(self):
+        if self.needs_epoch_hook:
+            self.criterion.set_epoch(self.current_epoch)
+        return super().on_train_epoch_start()
+        
     def training_step(self, batch, batch_idx):
 
         graph = batch
@@ -476,11 +373,11 @@ class WindowedGraphModel(pl.LightningModule):
 
     def on_train_epoch_end(self):
 
-        all_preds = th.cat(
+        all_preds = torch.cat(
             [t.unsqueeze(0) for t in self.train_outputs["preds"]]
         ).detach().cpu().numpy()
 
-        all_targets = th.cat(
+        all_targets = torch.cat(
             [t.unsqueeze(0) for t in self.train_outputs["targets"]]
         ).detach().cpu().numpy()
 
@@ -527,15 +424,15 @@ class WindowedGraphModel(pl.LightningModule):
         if getattr(self.trainer, "sanity_checking", False):
             self.val_outputs = {"preds": [], "targets": []}
             return  # skip any summary/logging during the sanity‐check
-        all_preds = th.cat(
+        all_preds = torch.cat(
             [t.unsqueeze(0) for t in self.val_outputs["preds"]]
         ).detach().cpu().numpy()
-        # all_preds = th.cat(self.val_outputs["preds"]).detach().cpu().numpy()
-        all_targets = th.cat(
+        # all_preds = torch.cat(self.val_outputs["preds"]).detach().cpu().numpy()
+        all_targets = torch.cat(
             [t.unsqueeze(0) for t in self.val_outputs["targets"]]
         ).detach().cpu().numpy()
         # print(f"==>> all_targets: {all_targets}")
-        # all_targets = th.cat(
+        # all_targets = torch.cat(
         #     self.val_outputs["targets"]).detach().cpu().numpy()
         weighted_f1 = f1_score(all_targets, all_preds,
                                average="weighted") * 100.0
@@ -583,14 +480,14 @@ class WindowedGraphModel(pl.LightningModule):
 
     def on_test_epoch_end(self):
 
-        all_preds = th.cat(
+        all_preds = torch.cat(
             [t.unsqueeze(0) for t in self.test_outputs["preds"]]
         ).detach().cpu().numpy()
 
-        all_targets = th.cat(
+        all_targets = torch.cat(
             [t.unsqueeze(0) for t in self.test_outputs["targets"]]
         ).detach().cpu().numpy()
-        # all_targets = th.cat(
+        # all_targets = torch.cat(
         #     self.test_outputs["targets"]).detach().cpu().numpy()
         self.test_outputs = {"preds": [], "targets": []}
         weighted_f1 = f1_score(all_targets, all_preds,
@@ -662,7 +559,7 @@ class WindowedGraphModel(pl.LightningModule):
         """
         Configure the optimizer. In this example, we use Adam.
         """
-        optimizer = th.optim.Adam(self.model.parameters(),
+        optimizer = torch.optim.Adam(self.model.parameters(),
                                   lr=self.learning_rate,
                                   weight_decay=self.weight_decay)
         return optimizer

@@ -81,7 +81,7 @@ def one_dataset_class_num_col(df, class_num_col, class_col):
 
     print(f"==>> labels_names: {labels_names}")
 
-    return df, labels_names
+    return df, labels_names, classes
 
 
 def two_dataset_class_num_col(df1, df2, class_num_col, class_col, class_num_col2=None, class_col2=None):
