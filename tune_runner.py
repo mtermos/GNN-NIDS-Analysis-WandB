@@ -6,7 +6,7 @@ This script uses Optuna to optimize hyperparameters by creating custom CONFIG
 instances and replacing the CONFIG import in main.py to run trials.
 
 Just modify the CONFIG section below and run:
-    python simple_tune_runner.py
+    python tune_runner.py
 """
 
 import os
@@ -19,6 +19,8 @@ from pathlib import Path
 import sys
 from datetime import datetime
 
+from local_variables import local_datasets_path
+
 # =============================================================================
 # CONFIG - Modify these settings
 # =============================================================================
@@ -29,37 +31,56 @@ from datetime import datetime
 # MODELS_TO_TEST = ["e_graphsage", "e_graphsage_no_sampling", "e_gat_no_sampling", "e_gat_sampling"]
 # MODELS_TO_TEST = ["e_gat_no_sampling", "e_gat_sampling"]
 MODELS_TO_TEST = ["e_graphsage", "e_gat"]
-NEIGHBOR_SAMPLING = False
+NEIGHBOR_SAMPLING = [True, False]
+
+# DATASET_NAME = "cic_ids_2017"
+DATASET_NAME = "cic_ton_iot"
+# DATASET_NAME = "cic_bot_iot"
+# DATASET_NAME = "cic_ton_iot_modified"
+# DATASET_NAME = "nf_ton_iotv2_modified"
+# DATASET_NAME = "ccd_inid_modified"
+# DATASET_NAME = "nf_uq_nids_modified"
+# DATASET_NAME = "edge_iiot"
+# DATASET_NAME = "nf_cse_cic_ids2018"
+# DATASET_NAME = "nf_bot_iotv2"
+# DATASET_NAME = "nf_uq_nids"
+# DATASET_NAME = "x_iiot"
 
 # Number of trials
-N_TRIALS = 1
+N_TRIALS = 20
 
 # Enable WandB logging (set to False if you have authentication issues)
-USE_WANDB = False
+USE_WANDB = True
 
 # Hyperparameter choices (all as lists)
 HP_RANGES = {
-    "learning_rate": [0.001, 0.002, 0.005, 0.01],
+    "learning_rate": [0.001, 0.0025, 0.005, 0.0075, 0.01],
     "weight_decay": [0.0001, 0.001, 0.01],
     # "num_layers": [1, 2, 3],
-    # "num_layers": [1, 2],
-    "num_layers": [1],
+    "num_layers": [1, 2],
+    # "num_layers": [1],
     "dropout": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
-    "residual": [True, False],
-    "aggregation": ["mean", "sum", "max"],
-    # "loss_name": ["vanilla_ce", "focal", "ldam_drw"],
+    # "residual": [True, False],
+    "aggregation": ["mean", "sum"],
+    "loss_name": ["vanilla_ce", "focal", "ldam_drw"],
     "focal_gamma": [1.0, 1.5, 2.0, 2.5, 3.0],
 }
 
 # Fixed hyperparameters
 FIXED_HPS = {
-    "dataset_name": "cic_ids_2017_5_percent",
-    "original_path": "testing_dfs/cic_ids_2017_5_percent.parquet",
-    "max_epochs": 5,
+    "dataset_name": DATASET_NAME,
+    "original_path": os.path.join(local_datasets_path,DATASET_NAME,f"{DATASET_NAME}.parquet"),
+    "max_epochs": 500,
+    "early_stopping_patience": 20,
+    # "dataset_name": "cic_ids_2017_5_percent",
+    # "original_path": "testing_dfs/cic_ids_2017_5_percent.parquet",
+    # "max_epochs": 5,
     "selected_models": MODELS_TO_TEST,
-    "focal_alpha": 0.25,
-    "loss_name": "ldam_drw",
-    "edge_update": True,
+    # "focal_alpha": 0.25,
+    "focal_alpha": "weighted_class_counts",
+    # "loss_name": "ldam_drw",
+    "edge_update": False,
+    "residual": True,
 }
 
 # =============================================================================
@@ -77,6 +98,7 @@ def sample_hyperparameters(trial):
     """Sample hyperparameters for a trial using Optuna"""
     hps = FIXED_HPS.copy()
     
+    use_neighbor_sampling = choice(NEIGHBOR_SAMPLING, "use_neighbor_sampling")
     # Sample from choices using choice method
     for param, choices in HP_RANGES.items():
         hps[param] = choice(choices, param)
@@ -85,7 +107,7 @@ def sample_hyperparameters(trial):
         # hps["ndim_out"] = [128]
         ndim_out_str = choice(["64", "128", "256"], "ndim_out_1layer")
         hps["ndim_out"] = [int(ndim_out_str)]
-        if NEIGHBOR_SAMPLING:
+        if use_neighbor_sampling:
             hps["number_neighbors"] = [25]
         else:
             hps["number_neighbors"] = None
@@ -93,7 +115,7 @@ def sample_hyperparameters(trial):
         # hps["ndim_out"] = [128,128]
         ndim_out_str = choice(["64,64", "128,128", "256,256"], "ndim_out_2layer")
         hps["ndim_out"] = [int(x) for x in ndim_out_str.split(",")]
-        if NEIGHBOR_SAMPLING:
+        if use_neighbor_sampling:
             hps["number_neighbors"] = [25, 10]
         else:
             hps["number_neighbors"] = None
@@ -101,7 +123,7 @@ def sample_hyperparameters(trial):
         # hps["ndim_out"] = [128,128,128]
         ndim_out_str = choice(["64,64,64", "128,128,64", "128,128,128"], "ndim_out_3layer")
         hps["ndim_out"] = [int(x) for x in ndim_out_str.split(",")]   
-        if NEIGHBOR_SAMPLING:
+        if use_neighbor_sampling:
             hps["number_neighbors"] = [25, 10, 10]
         else:
             hps["number_neighbors"] = None
@@ -110,16 +132,17 @@ def sample_hyperparameters(trial):
 
 def create_custom_config(hps):
     """Create a custom CONFIG instance with the desired hyperparameters"""
+
+    path_lit = json.dumps(str(hps["original_path"]))
+    # 
     config_code = f"""
 # Custom CONFIG for this trial
 from src.config import Config
 
 CONFIG = Config(
-    # Dataset configuration
     dataset_name="{hps['dataset_name']}",
-    original_path="{hps['original_path']}",
-    
-    # Model architecture
+    original_path={path_lit},
+
     ndim_out={hps['ndim_out']},
     num_layers={hps['num_layers']},
     number_neighbors={hps['number_neighbors']},
@@ -129,13 +152,11 @@ CONFIG = Config(
     edge_update={hps['edge_update']},
     selected_models={hps['selected_models']},
 
-    # Training configuration
     using_wandb={USE_WANDB},
     max_epochs={hps['max_epochs']},
     learning_rate={hps['learning_rate']},
     weight_decay={hps['weight_decay']},
     
-    # Loss function configuration
     loss_name="{hps['loss_name']}",
     focal_alpha={repr(hps['focal_alpha'])},
     focal_gamma={hps['focal_gamma']},
